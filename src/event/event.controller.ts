@@ -21,7 +21,7 @@ export class EventController {
   async subscribe(): Promise<any> {
     return [
       {
-        pubsubName: 'pubsub',
+        pubsubName: 'experiment-config-pubsub',
         topic: 'discount/order/validation-succeeded',
         route: 'heartbeat',
       },
