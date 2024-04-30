@@ -3,6 +3,7 @@ import { ServiceConfigurationRepository } from './configuration.repository';
 import {
   ConfigurationVariable,
   ServiceConfiguration,
+  ServiceReplica,
 } from './entities/service-configuration.entity';
 import { ConnectorService } from './connector.service';
 
@@ -17,10 +18,15 @@ export class ConfigurationService {
     this.serviceRepository = new ServiceConfigurationRepository();
   }
 
+  /**
+   * Updates the heartbeat of a service replica.
+   * If the service or replica does not exist, it adds a new service with the given name and replica ID.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   */
   heartbeat(serviceName: string, replicaId: string) {
     const service = this.findService(serviceName);
     if (!service) {
-      //  get defined variables for new service
       return this.addService(serviceName, replicaId);
     }
     const replica = service.replicas.find(
@@ -33,6 +39,11 @@ export class ConfigurationService {
     replica.lastSeen = new Date();
   }
 
+  /**
+   * Adds a new service with the given name and initial replica ID.
+   * @param serviceName - The name of the service.
+   * @param initialReplicaId - The ID of the initial replica.
+   */
   async addService(
     serviceName: string,
     initialReplicaId: string,
@@ -63,6 +74,13 @@ export class ConfigurationService {
     return service;
   }
 
+  /**
+   * Adds a new replica to a service configuration.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   * @returns The updated service configuration.
+   * @throws NotFoundException if the service is not found.
+   */
   addReplica(serviceName: string, replicaId: string): ServiceConfiguration {
     const service = this.findService(serviceName);
     if (!service) {
@@ -71,19 +89,37 @@ export class ConfigurationService {
 
     // initialise replica with global variables
     const variables: ConfigurationVariable[] = service.globalVariables;
-    service.replicas.push({ id: replicaId, replicaVariables: variables });
+    service.replicas.push({
+      id: replicaId,
+      replicaVariables: variables,
+      lastSeen: new Date(),
+    });
     return service;
   }
 
+  /**
+   * Retrieves all service configurations.
+   * @returns An array of ServiceConfiguration objects.
+   */
   findAllServices(): ServiceConfiguration[] {
     return this.serviceRepository.findAll();
   }
 
+  /**
+   * Retrieves all known service names.
+   * @returns An array of service names.
+   */
   findAllServiceNames(): string[] {
     return this.findAllServices().map((service) => service.name);
   }
 
-  findService(name: string) {
+  /**
+   * Retrieves a service configuration by name.
+   * @param name - The name of the service.
+   * @returns The service configuration.
+   * @throws NotFoundException if the service is not found.
+   */
+  findService(name: string): ServiceConfiguration {
     const service = this.serviceRepository.findByName(name);
     if (!service) {
       throw new NotFoundException(`Service '${name}' not found`);
@@ -91,7 +127,17 @@ export class ConfigurationService {
     return service;
   }
 
-  getServiceVariable(serviceName: string, variableKey: string) {
+  /**
+   * Retrieves a specific service configuration variable by name.
+   * @param serviceName - The name of the service.
+   * @param variableKey - The key of the variable.
+   * @returns The variable.
+   * @throws NotFoundException if the service is not found.
+   */
+  getServiceVariable(
+    serviceName: string,
+    variableKey: string,
+  ): ConfigurationVariable {
     const service = this.findService(serviceName);
     const variable = service.globalVariables.find(
       (variable) => variable.key === variableKey,
@@ -102,7 +148,14 @@ export class ConfigurationService {
     return variable;
   }
 
-  findReplica(serviceName: string, replicaId: string) {
+  /**
+   * Retrieves a replica configuration.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   * @returns The replica configuration.
+   * @throws NotFoundException if the service or replica is not found.
+   */
+  findReplica(serviceName: string, replicaId: string): ServiceReplica {
     const service = this.findService(serviceName);
     if (!service) {
       throw new NotFoundException(`Service '${serviceName}' not found`);
@@ -116,11 +169,19 @@ export class ConfigurationService {
     return replica;
   }
 
+  /**
+   * Retrieves a specific replica configuration variable by name.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   * @param variableKey - The key of the variable.
+   * @returns The variable.
+   * @throws NotFoundException if the service or replica is not found.
+   */
   getReplicaVariable(
     serviceName: string,
     replicaId: string,
     variableKey: string,
-  ) {
+  ): ConfigurationVariable {
     const replica = this.findReplica(serviceName, replicaId);
     const variable = replica.replicaVariables.find(
       (variable) => variable.key === variableKey,
@@ -131,6 +192,13 @@ export class ConfigurationService {
     return variable;
   }
 
+  /**
+   * Updates multiple global configuration variable.
+   * @param serviceName - The name of the service.
+   * @param variables - The updated variables.
+   * @returns The updated service configuration.
+   * @throws NotFoundException if the service is not found.
+   */
   batchAddOrUpdateServiceVariables(
     serviceName: string,
     variables: ConfigurationVariable[],
@@ -152,6 +220,14 @@ export class ConfigurationService {
     return service;
   }
 
+  /**
+   * Updates multiple replica configuration variables.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   * @param variables - The updated variables.
+   * @returns The updated service configuration.
+   * @throws NotFoundException if the service or replica is not found.
+   */
   batchAddOrUpdateReplicaVariables(
     serviceName: string,
     replicaId: string,
@@ -180,10 +256,22 @@ export class ConfigurationService {
     return service;
   }
 
+  /**
+   * Deletes a service by name.
+   * @param name - The name of the service to delete.
+   * @returns True if the service was successfully deleted, false otherwise.
+   */
   deleteService(name: string): boolean {
     return this.serviceRepository.delete(name);
   }
 
+  /**
+   * Deletes a replica by ID.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   * @returns True if the replica was successfully deleted, false otherwise.
+   * @throws NotFoundException if the service is not found.
+   */
   deleteReplica(serviceName: string, replicaId: string): boolean {
     const service = this.findService(serviceName);
     if (!service) {

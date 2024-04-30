@@ -5,6 +5,9 @@ import { EventModule } from 'src/event/event.module';
 import { ConnectorService } from './connector.service';
 import { HttpModule } from '@nestjs/axios';
 
+/**
+ * Module for handling configurations.
+ */
 @Module({
   imports: [
     // To avoid circular dependencies, forwardRef() is used to import the EventModule

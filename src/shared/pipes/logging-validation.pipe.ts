@@ -4,6 +4,13 @@ import {
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
+
+/**
+ * A custom validation pipe that extends the ValidationPipe class.
+ * This pipe handles validation and transformation of incoming values.
+ * If a BadRequestException is thrown during validation, it logs the errors and rethrows the exception.
+ * For other types of exceptions, it rethrows them as well.
+ */
 @Injectable()
 export class LoggingValidationPipe extends ValidationPipe {
   constructor(options?) {
@@ -11,17 +18,13 @@ export class LoggingValidationPipe extends ValidationPipe {
   }
 
   async transform(value: any, metadata: ArgumentMetadata) {
-    // Call the base class transform method to handle validation and transformation
     try {
       return await super.transform(value, metadata);
     } catch (e) {
       if (e instanceof BadRequestException) {
-        // Here you can log the errors
         console.error('Validation errors:', e.getResponse());
-        // Optionally, rethrow the error or handle it as needed
         throw e;
       }
-      // For other types of errors, just rethrow them
       throw e;
     }
   }

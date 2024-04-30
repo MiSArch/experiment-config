@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DaprClient, CommunicationProtocolEnum } from '@dapr/dapr';
 
+/**
+ * Service for publishing events to Dapr pubsub components.
+ */
 @Injectable()
 export class EventPublisherService {
   private readonly daprClient: DaprClient;

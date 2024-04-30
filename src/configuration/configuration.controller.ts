@@ -4,6 +4,9 @@ import { ConfigurationVariable } from './entities/service-configuration.entity';
 import { UpdateVariableDto } from './dto/update-variable.dto';
 import { BatchUpdateVariableDto } from './dto/batch-update-variables.dto';
 
+/**
+ * Controller for handling configurations.
+ */
 @Controller('configuration')
 export class ConfigurationController {
   constructor(private readonly configurationService: ConfigurationService) {}
