@@ -37,11 +37,11 @@ export class EventController {
   @Post('heartbeat')
   async processHeartbeat(@Body() event: HeartbeatDto): Promise<void> {
     // Extract the order context from the event
-    const { service, replica } = event;
+    const { ServiceName, ReplicaId } = event;
     this.logger.debug(
-      `Received heartbeat for replica "${replica}" of service "${service}"`,
+      `Received heartbeat for replica "${ReplicaId}" of service "${ServiceName}"`,
     );
 
-    this.eventService.heartbeat(service, replica);
+    this.eventService.heartbeat(ServiceName, ReplicaId);
   }
 }
