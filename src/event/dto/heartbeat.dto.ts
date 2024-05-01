@@ -7,7 +7,7 @@ import { IsString } from 'class-validator';
  */
 export class HeartbeatDto {
   @IsString()
-  ServiceName: string;
+  serviceName: string;
   @IsString()
-  ReplicaId: string;
+  replicaId: string;
 }
