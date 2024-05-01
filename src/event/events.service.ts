@@ -39,6 +39,7 @@ export class EventService {
     serviceName: string,
     configurations: ServiceReplica[],
   ): void {
+    this.logger.log(`Publishing new configuration for service ${serviceName}`);
     // transform configurations to event payload
     const configurationDto = this.buildConfigurationDto(configurations);
     this.eventPublisherService.publishEvent(
@@ -70,6 +71,9 @@ export class EventService {
           variables: valueMap,
         };
       },
+    );
+    this.logger.log(
+      `{buildConfigurationDto} - configurations: ${JSON.stringify(replicaConfigurations)}`,
     );
 
     return {

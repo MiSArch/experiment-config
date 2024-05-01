@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ export class ConfigurationService {
     // use forward reference to avoid circular dependency
     @Inject(forwardRef(() => EventService))
     private readonly eventService: EventService,
+    private readonly logger: Logger,
   ) {
     this.serviceRepository = new ServiceConfigurationRepository();
   }
@@ -36,6 +38,7 @@ export class ConfigurationService {
    * @param replicaId - The ID of the replica.
    */
   heartbeat(serviceName: string, replicaId: string) {
+    this.logger.log(`Heartbeat from replica ${replicaId} of service ${serviceName}`);
     const service = this.findService(serviceName);
     if (!service) {
       return this.addService(serviceName, replicaId);
@@ -69,6 +72,8 @@ export class ConfigurationService {
     const { data } =
       await this.connectorService.getConfigFromSidecar(serviceName);
 
+    this.logger.log(`Received variable definitions for service ${serviceName}: ${JSON.stringify(data)}`);
+
     // iterate over variable definitions and initialise variables and definitions
     Object.entries(data.configuration).forEach(([key, value]) => {
       service.globalVariables.push({
@@ -81,6 +86,7 @@ export class ConfigurationService {
       });
     });
 
+    this.logger.log(`Added new service ${serviceName} with replica ${initialReplicaId}`);
     this.serviceRepository.create(service);
     return service;
   }
@@ -94,6 +100,7 @@ export class ConfigurationService {
    */
   addReplica(serviceName: string, replicaId: string): ServiceConfiguration {
     const service = this.findService(serviceName);
+    this.logger.log(`Adding replica ${replicaId} to service ${serviceName}`);
     if (!service) {
       throw new NotFoundException(`Service '${serviceName}' not found`);
     }
