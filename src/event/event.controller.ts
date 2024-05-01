@@ -22,7 +22,7 @@ export class EventController {
     return [
       {
         pubsubName: 'experiment-config-pubsub',
-        topic: 'discount/order/validation-succeeded',
+        topic: 'heartbeat',
         route: 'heartbeat',
       },
     ];
