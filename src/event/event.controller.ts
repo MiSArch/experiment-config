@@ -35,7 +35,7 @@ export class EventController {
    * @returns A promise that resolves to void.
    */
   @Post('heartbeat')
-  async processHeartbeat(@Body() event: HeartbeatDto): Promise<void> {
+  async processHeartbeat(@Body('data') event: HeartbeatDto): Promise<void> {
     // Extract the order context from the event
     const { serviceName, replicaId } = event;
     this.logger.debug(
