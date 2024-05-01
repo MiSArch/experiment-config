@@ -39,18 +39,25 @@ export class ConfigurationService {
    */
   heartbeat(serviceName: string, replicaId: string) {
     this.logger.log(`Heartbeat from replica ${replicaId} of service ${serviceName}`);
-    const service = this.findService(serviceName);
-    if (!service) {
-      return this.addService(serviceName, replicaId);
+    try {
+      const service = this.findService(serviceName);
+      const replica = service.replicas.find(
+        (replica) => replica.id === replicaId,
+      );
+      if (!replica) {
+        return this.addReplica(serviceName, replicaId);
+      }
+      // update last seen
+      replica.lastSeen = new Date();
     }
-    const replica = service.replicas.find(
-      (replica) => replica.id === replicaId,
-    );
-    if (!replica) {
-      return this.addReplica(serviceName, replicaId);
+    catch (error) {
+      if (error instanceof NotFoundException) {
+        this.logger.error(`Service ${serviceName} not found, adding new service`);
+        this.addService(serviceName, replicaId);
+      } else {
+        throw error;
+      }
     }
-    // update last seen
-    replica.lastSeen = new Date();
   }
 
   /**
