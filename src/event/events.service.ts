@@ -1,7 +1,10 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { ConfigurationService } from 'src/configuration/configuration.service';
-import { ConfigurationDto } from './dto/configuration.dto';
-import { ConfigurationVariable } from 'src/configuration/entities/service-configuration.entity';
+import {
+  ConfigurationDto,
+  ReplicaConfiguration,
+} from './dto/configuration.dto';
+import { ServiceReplica } from 'src/configuration/entities/service-configuration.entity';
 import { EventPublisherService } from './event-publisher.service';
 
 /**
@@ -30,24 +33,47 @@ export class EventService {
   /**
    * Publishes a configuration.
    * This event leads to the replica adjusting its configuration via the experiment-config sidecar.
-   * @param configuration - The new configuration dto for the replica.
+   * @param configuration - The changed replica configurations.
    */
-  publishConfiguration(configurations: ConfigurationVariable[]): void {
+  publishConfiguration(
+    serviceName: string,
+    configurations: ServiceReplica[],
+  ): void {
     // transform configurations to event payload
-    const valueMap: Record<string, any> = configurations.reduce(
-      (accumulator, currentConfiguration) => {
-        accumulator[currentConfiguration.key] = currentConfiguration.value;
-        return accumulator;
-      },
-      {},
-    );
-    const eventPayload: ConfigurationDto = {
-      configuration: valueMap,
-    };
+    const configurationDto = this.buildConfigurationDto(configurations);
     this.eventPublisherService.publishEvent(
       'pubsub',
-      'payment/payment/payment-failed',
-      eventPayload,
+      `config/${serviceName}`,
+      configurationDto,
     );
+  }
+
+  /**
+   * Builds a configuration DTO from the given service replicas.
+   * @param configurations - The service replicas to build the DTO from.
+   * @returns The configuration DTO.
+   */
+  private buildConfigurationDto(
+    configurations: ServiceReplica[],
+  ): ConfigurationDto {
+    const replicaConfigurations: ReplicaConfiguration[] = configurations.map(
+      (replica) => {
+        const valueMap: Record<string, any> = replica.replicaVariables.reduce(
+          (accumulator, currentConfiguration) => {
+            accumulator[currentConfiguration.key] = currentConfiguration.value;
+            return accumulator;
+          },
+          {},
+        );
+        return {
+          replicaId: replica.id,
+          variables: valueMap,
+        };
+      },
+    );
+
+    return {
+      configurations: replicaConfigurations,
+    };
   }
 }

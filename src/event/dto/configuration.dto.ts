@@ -1,14 +1,30 @@
-import { JSONSchemaType } from 'ajv';
-import { IsObject } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsObject,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 /**
- * DTO for a replica configuration event.
- * @property configuration - The updated configuration for the replica.
+ * DTO for a configuration event.
+ * @property configurations - The updated configurations for different service replicas.
  */
 export class ConfigurationDto {
+  @IsNotEmpty()
+  @IsArray()
+  @ValidateNested({ each: true })
+  configurations: ReplicaConfiguration[];
+}
+
+/**
+ * DTO for a replica configuration.
+ * @property replicaId - The ID of the replica.
+ * @property variables - The updated variables for the replica.
+ */
+export class ReplicaConfiguration {
+  @IsString()
+  replicaId: string;
   @IsObject()
-  configuration: Record<
-    string,
-    { type: JSONSchemaType<any>; defaultValue: any }
-  >;
+  variables: Record<string, any>;
 }

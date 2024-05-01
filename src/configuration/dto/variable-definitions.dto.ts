@@ -1,3 +1,4 @@
+import { JSONSchemaType } from 'ajv';
 import { IsNotEmpty, IsObject } from 'class-validator';
 
 /**
@@ -7,5 +8,8 @@ import { IsNotEmpty, IsObject } from 'class-validator';
 export class VariableDefinitionsDto {
   @IsNotEmpty()
   @IsObject()
-  configuration: Record<string, any>;
+  configuration: Record<
+    string,
+    { type: JSONSchemaType<any>; defaultValue: any }
+  >;
 }

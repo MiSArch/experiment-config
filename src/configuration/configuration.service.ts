@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { ServiceConfigurationRepository } from './configuration.repository';
 import {
   ConfigurationVariable,
@@ -6,6 +11,7 @@ import {
   ServiceReplica,
 } from './entities/service-configuration.entity';
 import { ConnectorService } from './connector.service';
+import { EventService } from 'src/event/events.service';
 
 /**
  * Service for handling configurations.
@@ -14,7 +20,12 @@ import { ConnectorService } from './connector.service';
 export class ConfigurationService {
   private readonly serviceRepository: ServiceConfigurationRepository;
 
-  constructor(private readonly connectorService: ConnectorService) {
+  constructor(
+    private readonly connectorService: ConnectorService,
+    // use forward reference to avoid circular dependency
+    @Inject(forwardRef(() => EventService))
+    private readonly eventService: EventService,
+  ) {
     this.serviceRepository = new ServiceConfigurationRepository();
   }
 
@@ -217,6 +228,12 @@ export class ConfigurationService {
         service.globalVariables.push(variable);
       }
     });
+    // update all replicas with new global variables
+    service.replicas.forEach((replica) => {
+      replica.replicaVariables = service.globalVariables;
+    });
+    // send updated configuration to sidecar
+    this.eventService.publishConfiguration(serviceName, service.replicas);
     return service;
   }
 
@@ -253,6 +270,8 @@ export class ConfigurationService {
         replica.replicaVariables.push(variable);
       }
     });
+    // send updated configuration to sidecar
+    this.eventService.publishConfiguration(serviceName, [replica]);
     return service;
   }
 

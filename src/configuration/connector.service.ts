@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { AxiosResponse } from 'axios';
-import { ConfigurationDto } from 'src/event/dto/configuration.dto';
+import { VariableDefinitionsDto } from './dto/variable-definitions.dto';
 
 /**
  * Service for connecting to individual service sidecars.
@@ -20,11 +20,11 @@ export class ConnectorService {
    */
   async getConfigFromSidecar(
     service: string,
-  ): Promise<AxiosResponse<ConfigurationDto>> {
+  ): Promise<AxiosResponse<VariableDefinitionsDto>> {
     try {
       const response = (await this.httpService
         .get(`http://localhost:3500/${service}/'_ecs/defined-variables'`)
-        .toPromise()) as AxiosResponse<ConfigurationDto>;
+        .toPromise()) as AxiosResponse<VariableDefinitionsDto>;
 
       if (response && response.status !== 200) {
         this.logger.error(
