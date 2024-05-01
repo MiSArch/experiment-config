@@ -8,10 +8,13 @@ import { VariableDefinitionsDto } from './dto/variable-definitions.dto';
  */
 @Injectable()
 export class ConnectorService {
+  private baseUrl:string
   constructor(
     private readonly logger: Logger,
     private readonly httpService: HttpService,
-  ) {}
+  ) {
+    this.baseUrl = 'http://localhost:3500/v1.0/invoke'
+  }
 
   /**
    * Request the variable definitions from the specified sidecar.
@@ -23,7 +26,7 @@ export class ConnectorService {
   ): Promise<AxiosResponse<VariableDefinitionsDto>> {
     try {
       const response = (await this.httpService
-        .get(`http://localhost:3500/${service}/'_ecs/defined-variables'`)
+        .get(`${this.baseUrl}/${service}/method/_ecs/defined-variables`)
         .toPromise()) as AxiosResponse<VariableDefinitionsDto>;
 
       if (response && response.status !== 200) {
