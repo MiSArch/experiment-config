@@ -13,8 +13,22 @@ export class ServiceConfigurationRepository {
   public create(
     serviceConfiguration: ServiceConfiguration,
   ): ServiceConfiguration {
-    this.serviceConfigurations.push(serviceConfiguration);
-    return serviceConfiguration;
+    // check if the service configuration already exists (due to race conditions)
+    const existingServiceConfiguration = this
+      .findByName(serviceConfiguration.name);
+    if (!existingServiceConfiguration) {
+      this.serviceConfigurations.push(serviceConfiguration);
+      return serviceConfiguration;
+    }
+    // check if it is a new replica
+    if (!existingServiceConfiguration.replicas.some(
+      (replica) => replica.id === serviceConfiguration.replicas[0].id,
+    )) {
+      existingServiceConfiguration.replicas.push(
+        serviceConfiguration.replicas[0],
+      );
+    }
+    return existingServiceConfiguration;
   }
 
   /**

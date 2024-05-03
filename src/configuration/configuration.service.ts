@@ -38,7 +38,6 @@ export class ConfigurationService {
    * @param replicaId - The ID of the replica.
    */
   heartbeat(serviceName: string, replicaId: string) {
-    this.logger.log(`Heartbeat from replica ${replicaId} of service ${serviceName}`);
     try {
       const service = this.findService(serviceName);
       const replica = service.replicas.find(
@@ -75,15 +74,32 @@ export class ConfigurationService {
       globalVariables: [],
       variableDefinitions: [],
     };
+
+    this.logger.log(`Adding service ${serviceName} with replica ${initialReplicaId}`);
+    this.serviceRepository.create(service);
+    return this.buildServiceConfiguration(service);
+  }
+
+  /**
+   * Adds the global variables and queries variable definitions from the sidecar.
+   * @param service - The service configuration.
+   * @returns The updated service configuration.
+   */
+  async buildServiceConfiguration(service: ServiceConfiguration): Promise<ServiceConfiguration> {
+    const serviceName = service.name;
     // request variable definitions from sidecar
     const { data } =
       await this.connectorService.getConfigFromSidecar(serviceName);
-
     this.logger.log(`Received variable definitions for service ${serviceName}: ${JSON.stringify(data)}`);
 
     // iterate over variable definitions and initialise variables and definitions
     Object.entries(data.configuration).forEach(([key, value]) => {
       service.globalVariables.push({
+        key: key,
+        value: value.defaultValue,
+      });
+      // set default values for original replica too
+      service.replicas[0].replicaVariables.push({
         key: key,
         value: value.defaultValue,
       });
@@ -93,8 +109,7 @@ export class ConfigurationService {
       });
     });
 
-    this.logger.log(`Added new service ${serviceName} with replica ${initialReplicaId}`);
-    this.serviceRepository.create(service);
+    this.serviceRepository.update(serviceName, service);
     return service;
   }
 
@@ -230,6 +245,7 @@ export class ConfigurationService {
   ): ServiceConfiguration {
     const service = this.findService(serviceName);
     if (!service) {
+      this.logger.error(`{batchAddOrUpdateServiceVariables} Service ${serviceName} not found`)
       throw new NotFoundException(`Service '${serviceName}' not found`);
     }
     variables.forEach((variable) => {

@@ -38,9 +38,6 @@ export class EventController {
   async processHeartbeat(@Body('data') event: HeartbeatDto): Promise<void> {
     // Extract the order context from the event
     const { serviceName, replicaId } = event;
-    this.logger.debug(
-      `Received heartbeat for replica "${replicaId}" of service "${serviceName}"`,
-    );
 
     this.eventService.heartbeat(serviceName, replicaId);
   }
