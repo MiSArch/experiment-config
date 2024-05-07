@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -13,6 +14,7 @@ import {
 } from './entities/service-configuration.entity';
 import { ConnectorService } from './connector.service';
 import { EventService } from 'src/event/events.service';
+import Ajv from 'ajv';
 
 /**
  * Service for handling configurations.
@@ -20,6 +22,7 @@ import { EventService } from 'src/event/events.service';
 @Injectable()
 export class ConfigurationService {
   private readonly serviceRepository: ServiceConfigurationRepository;
+  private ajv: any;
 
   constructor(
     private readonly connectorService: ConnectorService,
@@ -29,6 +32,7 @@ export class ConfigurationService {
     private readonly logger: Logger,
   ) {
     this.serviceRepository = new ServiceConfigurationRepository();
+    this.ajv = new Ajv()
   }
 
   /**
@@ -248,9 +252,34 @@ export class ConfigurationService {
       this.logger.error(`{batchAddOrUpdateServiceVariables} Service ${serviceName} not found`)
       throw new NotFoundException(`Service '${serviceName}' not found`);
     }
+    try {
+      this.validateVariables(variables, serviceName);
+      this.updateServiceVariables(variables, service);
+      // update all replicas with new global variables
+      service.replicas.forEach((replica) => {
+        replica.replicaVariables = structuredClone(service.globalVariables);
+      });
+      // send updated configuration to sidecar
+      this.eventService.publishConfiguration(serviceName, service.replicas);
+      return service;
+    } catch (error) {
+      this.logger.error(`{batchAddOrUpdateServiceVariables} ${error.message}`)
+      throw error;
+    }
+  }
+
+  /**
+   * Updates the service variables with the given configuration variables.
+   * If a variable with the same key already exists in the service, it will be updated.
+   * Otherwise, the variable will be added to the service.
+   * 
+   * @param variables - The configuration variables to update the service with.
+   * @param service - The service to update.
+   */
+  private updateServiceVariables(variables: ConfigurationVariable[], service: ServiceConfiguration) {
     variables.forEach((variable) => {
       const existingVarIndex = service.globalVariables.findIndex(
-        (existingVariable) => existingVariable.key === variable.key,
+        (existingVariable) => existingVariable.key === variable.key
       );
       if (existingVarIndex > -1) {
         service.globalVariables[existingVarIndex] = variable;
@@ -258,13 +287,6 @@ export class ConfigurationService {
         service.globalVariables.push(variable);
       }
     });
-    // update all replicas with new global variables
-    service.replicas.forEach((replica) => {
-      replica.replicaVariables = service.globalVariables;
-    });
-    // send updated configuration to sidecar
-    this.eventService.publishConfiguration(serviceName, service.replicas);
-    return service;
   }
 
   /**
@@ -280,19 +302,40 @@ export class ConfigurationService {
     replicaId: string,
     variables: ConfigurationVariable[],
   ): ServiceConfiguration {
-    const service = this.findService(serviceName);
-    if (!service) {
-      throw new NotFoundException(`Service '${serviceName}' not found`);
+    try {
+      const service = this.findService(serviceName);
+      if (!service) {
+        throw new NotFoundException(`Service '${serviceName}' not found`);
+      }
+      const replica = service.replicas.find(
+        (existingReplica) => existingReplica.id === replicaId,
+      );
+      if (!replica) {
+        throw new NotFoundException(`Replica '${replicaId}' not found`);
+      }
+      this.validateVariables(variables, serviceName);
+      this.updateReplicaVariables(variables, replica);
+      // send updated configuration to sidecar
+      this.eventService.publishConfiguration(serviceName, [replica]);
+      return service;
+    } catch (error) {
+      this.logger.error(`{batchAddOrUpdateReplicaVariables} ${error.message}`)
+      throw error;
     }
-    const replica = service.replicas.find(
-      (existingReplica) => existingReplica.id === replicaId,
-    );
-    if (!replica) {
-      throw new NotFoundException(`Replica '${replicaId}' not found`);
-    }
+  }
+
+  /**
+   * Updates the replica variables with the given configuration variables.
+   * If a variable with the same key already exists in the replica, it will be updated.
+   * Otherwise, the variable will be added to the replica.
+   * 
+   * @param variables - The configuration variables to update the replica with.
+   * @param replica - The service replica to update.
+   */
+  private updateReplicaVariables(variables: ConfigurationVariable[], replica: ServiceReplica) {
     variables.forEach((variable) => {
       const existingVarIndex = replica.replicaVariables.findIndex(
-        (existingVariable) => existingVariable.key === variable.key,
+        (existingVariable) => existingVariable.key === variable.key
       );
       if (existingVarIndex > -1) {
         replica.replicaVariables[existingVarIndex] = variable;
@@ -300,9 +343,23 @@ export class ConfigurationService {
         replica.replicaVariables.push(variable);
       }
     });
-    // send updated configuration to sidecar
-    this.eventService.publishConfiguration(serviceName, [replica]);
-    return service;
+  }
+
+  /**
+   * Validates the configuration variables against the variable definitions of a service.
+   * @param variables - The configuration variables to validate.
+   * @param serviceName - The name of the service.
+   * @throws Error if the variables do not match the variable definitions.
+   */
+  validateVariables(variables: ConfigurationVariable[], serviceName: string) {
+    const { variableDefinitions } = this.findService(serviceName);
+    variables.forEach(variable => {
+      const definition = variableDefinitions.find(def => def.key === variable.key);
+      if (!definition) throw new Error(`Variable definition not found for ${variable.key}`);
+      const validate = this.ajv.compile(definition.type);
+      const valid = validate(variable.value);
+      if (!valid) throw new BadRequestException(`[${variable.key}] Validation failed: ${validate.errors?.map(err => `${err.instancePath} ${err.message}`).join(', ')}`);
+    });
   }
 
   /**

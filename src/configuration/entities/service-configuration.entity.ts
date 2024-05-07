@@ -4,7 +4,6 @@ import { JSONSchemaType } from 'ajv';
  * Represents a configuration variable.
  * @property key - The key of the configuration variable.
  * @property value - The current value of the configuration variable.
- * @property type - The type of the configuration variable.
  */
 export interface ConfigurationVariable {
   key: string;
