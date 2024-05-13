@@ -6,7 +6,9 @@ import { DaprClient, CommunicationProtocolEnum } from '@dapr/dapr';
  */
 @Injectable()
 export class EventPublisherService {
+  // DaprClient instance for interacting with the Dapr sidecar.
   private readonly daprClient: DaprClient;
+  // Logger instance for logging.
   private readonly logger = new Logger(EventPublisherService.name);
 
   constructor() {
