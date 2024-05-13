@@ -18,6 +18,7 @@ export interface ConfigurationVariable {
 export interface ConfigurationVariableDefinition {
   key: string;
   type: JSONSchemaType<any>;
+  defaultValue: any;
 }
 
 /**

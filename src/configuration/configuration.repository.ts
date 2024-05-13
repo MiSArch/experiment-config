@@ -1,45 +1,48 @@
+import { NotFoundException } from '@nestjs/common';
 import { ServiceConfiguration } from './entities/service-configuration.entity';
+
 /**
- * Repository class for storing services and configurations in memory.
+ * Repository class for storing services and configurations in memory using a Map.
  */
 export class ServiceConfigurationRepository {
-  private serviceConfigurations: ServiceConfiguration[] = [];
+  private serviceConfigurations: Map<string, ServiceConfiguration> = new Map();
 
   /**
    * Creates a new service configuration and adds it to the repository.
    * @param serviceConfiguration - The service configuration to be created.
+   * @throws Error if the service name already exists.
    * @returns The created service configuration.
    */
-  public create(
-    serviceConfiguration: ServiceConfiguration,
-  ): ServiceConfiguration {
-    // check if the service configuration already exists (due to race conditions)
-    const existingServiceConfiguration = this
-      .findByName(serviceConfiguration.name);
-    if (!existingServiceConfiguration) {
-      this.serviceConfigurations.push(serviceConfiguration);
-      return serviceConfiguration;
+  public create(serviceConfiguration: ServiceConfiguration): ServiceConfiguration {
+    const serviceName = serviceConfiguration.name;
+    if (this.serviceConfigurations.has(serviceName)) {
+      throw new Error(`Service configuration with name "${serviceName}" already exists.`);
     }
-    // check if it is a new replica
-    if (!existingServiceConfiguration.replicas.some(
-      (replica) => replica.id === serviceConfiguration.replicas[0].id,
-    )) {
-      existingServiceConfiguration.replicas.push(
-        serviceConfiguration.replicas[0],
-      );
-    }
-    return existingServiceConfiguration;
+    this.serviceConfigurations.set(serviceName, serviceConfiguration);
+    return serviceConfiguration;
+  }
+
+  /**
+   * Checks if a service configuration with the provided name exists.
+   * @param name - The name of the service to check.
+   * @returns True if the service configuration exists, false otherwise.
+   */
+  public exists(name: string): boolean {
+    return this.serviceConfigurations.has(name);
   }
 
   /**
    * Finds a service configuration by its service name.
    * @param name - The name of the service for which the configuration should be found.
-   * @returns The found service configuration, or undefined if not found.
+   * @returns The found service configuration
+   * @throws NotFoundException if the service configuration with the provided name is not found.
    */
-  public findByName(name: string): ServiceConfiguration | undefined {
-    return this.serviceConfigurations.find(
-      (serviceConfiguration) => serviceConfiguration.name === name,
-    );
+  public findByName(name: string): ServiceConfiguration {
+    const service = this.serviceConfigurations.get(name);
+    if (!service) {
+      throw new NotFoundException(`Service configuration with name "${name}" not found.`);
+    }
+    return service;
   }
 
   /**
@@ -47,22 +50,23 @@ export class ServiceConfigurationRepository {
    * @returns All service configurations.
    */
   public findAll(): ServiceConfiguration[] {
-    return this.serviceConfigurations;
+    return Array.from(this.serviceConfigurations.values());
   }
 
   /**
    * Updates a service configuration for the provided service name.
    * @param name - The ID of the service configuration to update.
    * @param update - The partial service configuration object with the updated values.
-   * @returns The updated service configuration, or undefined if the service configuration was not found.
+   * @returns The updated service configuration
+   * @throws NotFoundException if the service configuration with the provided name is not found.
    */
-  public update(
-    name: string,
-    update: Partial<ServiceConfiguration>,
-  ): ServiceConfiguration | undefined {
+  public update(name: string, update: Partial<ServiceConfiguration>): ServiceConfiguration {
     const serviceConfiguration = this.findByName(name);
-    if (!serviceConfiguration) return undefined;
+    if (!serviceConfiguration) {
+      throw new NotFoundException(`Service configuration with name "${name}" not found.`);
+    };
     Object.assign(serviceConfiguration, update);
+    this.serviceConfigurations.set(name, serviceConfiguration);
     return serviceConfiguration;
   }
 
@@ -72,10 +76,6 @@ export class ServiceConfigurationRepository {
    * @returns True if the service configuration was successfully deleted, false otherwise.
    */
   public delete(name: string): boolean {
-    const initialLength = this.serviceConfigurations.length;
-    this.serviceConfigurations = this.serviceConfigurations.filter(
-      (serviceConfiguration) => serviceConfiguration.name !== name,
-    );
-    return this.serviceConfigurations.length < initialLength;
+    return this.serviceConfigurations.delete(name);
   }
 }

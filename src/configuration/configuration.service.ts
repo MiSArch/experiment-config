@@ -15,14 +15,20 @@ import {
 import { ConnectorService } from './connector.service';
 import { EventService } from 'src/event/events.service';
 import Ajv from 'ajv';
+import { VariableDefinitionsDto } from './dto/variable-definitions.dto';
+import { AxiosResponse } from 'axios';
 
 /**
  * Service for handling configurations.
  */
 @Injectable()
 export class ConfigurationService {
+  // in-memory repository for service configurations
   private readonly serviceRepository: ServiceConfigurationRepository;
-  private ajv: any;
+  // ajv instance for validating variables
+  private ajv: any = new Ajv();
+  // simple mutex to avoid issues from multiple heartbeats. Works since there will be only one experiment config service.
+  private mutex: any = {};
 
   constructor(
     private readonly connectorService: ConnectorService,
@@ -32,7 +38,6 @@ export class ConfigurationService {
     private readonly logger: Logger,
   ) {
     this.serviceRepository = new ServiceConfigurationRepository();
-    this.ajv = new Ajv()
   }
 
   /**
@@ -42,24 +47,34 @@ export class ConfigurationService {
    * @param replicaId - The ID of the replica.
    */
   heartbeat(serviceName: string, replicaId: string) {
-    try {
-      const service = this.findService(serviceName);
-      const replica = service.replicas.find(
-        (replica) => replica.id === replicaId,
-      );
-      if (!replica) {
-        return this.addReplica(serviceName, replicaId);
-      }
-      // update last seen
-      replica.lastSeen = new Date();
+    if (!this.serviceRepository.exists(serviceName) && !this.mutex[serviceName]) {
+      return this.handleFirstHeartbeat(serviceName, replicaId);
     }
-    catch (error) {
-      if (error instanceof NotFoundException) {
-        this.logger.error(`Service ${serviceName} not found, adding new service`);
-        this.addService(serviceName, replicaId);
-      } else {
-        throw error;
-      }
+    const service = this.findService(serviceName);
+    const replica = service.replicas.find(
+      (replica) => replica.id === replicaId,
+    );
+    if (!replica) {
+      return this.addReplica(serviceName, replicaId);
+    }
+    // update last seen
+    replica.lastSeen = new Date();
+  }
+
+  /**
+   * Handles the first heartbeat of a service.
+   * @param serviceName - The name of the service.
+   * @param replicaId - The ID of the replica.
+   */
+  async handleFirstHeartbeat(serviceName: string, replicaId: string) {
+    this.mutex[serviceName] = true;
+    this.logger.log(`Service ${serviceName} not found, adding new service`);
+    try {
+      return this.addService(serviceName, replicaId);
+    } catch (error) {
+      this.logger.error(`{heartbeat} ${error.message}`)
+      this.mutex[serviceName] = false;
+      return;
     }
   }
 
@@ -67,6 +82,7 @@ export class ConfigurationService {
    * Adds a new service with the given name and initial replica ID.
    * @param serviceName - The name of the service.
    * @param initialReplicaId - The ID of the initial replica.
+   * @returns The created service configuration.
    */
   async addService(
     serviceName: string,
@@ -86,13 +102,14 @@ export class ConfigurationService {
 
   /**
    * Adds the global variables and queries variable definitions from the sidecar.
+   * Is called directly after the first heartbeat of a service and due to the mutex, there can only be one replica.
    * @param service - The service configuration.
    * @returns The updated service configuration.
    */
   async buildServiceConfiguration(service: ServiceConfiguration): Promise<ServiceConfiguration> {
     const serviceName = service.name;
     // request variable definitions from sidecar
-    const { data } =
+    const { data }: AxiosResponse<VariableDefinitionsDto> =
       await this.connectorService.getConfigFromSidecar(serviceName);
     this.logger.log(`Received variable definitions for service ${serviceName}: ${JSON.stringify(data)}`);
 
@@ -110,10 +127,12 @@ export class ConfigurationService {
       service.variableDefinitions.push({
         key: key,
         type: value.type,
+        defaultValue: value.defaultValue,
       });
     });
 
     this.serviceRepository.update(serviceName, service);
+    this.mutex[serviceName] = false;
     return service;
   }
 
@@ -165,9 +184,6 @@ export class ConfigurationService {
    */
   findService(name: string): ServiceConfiguration {
     const service = this.serviceRepository.findByName(name);
-    if (!service) {
-      throw new NotFoundException(`Service '${name}' not found`);
-    }
     return service;
   }
 
@@ -254,11 +270,12 @@ export class ConfigurationService {
     }
     try {
       this.validateVariables(variables, serviceName);
-      this.updateServiceVariables(variables, service);
+      service.globalVariables = variables;
       // update all replicas with new global variables
       service.replicas.forEach((replica) => {
         replica.replicaVariables = structuredClone(service.globalVariables);
       });
+      this.serviceRepository.update(serviceName, service);
       // send updated configuration to sidecar
       this.eventService.publishConfiguration(serviceName, service.replicas);
       return service;
@@ -266,27 +283,6 @@ export class ConfigurationService {
       this.logger.error(`{batchAddOrUpdateServiceVariables} ${error.message}`)
       throw error;
     }
-  }
-
-  /**
-   * Updates the service variables with the given configuration variables.
-   * If a variable with the same key already exists in the service, it will be updated.
-   * Otherwise, the variable will be added to the service.
-   * 
-   * @param variables - The configuration variables to update the service with.
-   * @param service - The service to update.
-   */
-  private updateServiceVariables(variables: ConfigurationVariable[], service: ServiceConfiguration) {
-    variables.forEach((variable) => {
-      const existingVarIndex = service.globalVariables.findIndex(
-        (existingVariable) => existingVariable.key === variable.key
-      );
-      if (existingVarIndex > -1) {
-        service.globalVariables[existingVarIndex] = variable;
-      } else {
-        service.globalVariables.push(variable);
-      }
-    });
   }
 
   /**
@@ -304,9 +300,6 @@ export class ConfigurationService {
   ): ServiceConfiguration {
     try {
       const service = this.findService(serviceName);
-      if (!service) {
-        throw new NotFoundException(`Service '${serviceName}' not found`);
-      }
       const replica = service.replicas.find(
         (existingReplica) => existingReplica.id === replicaId,
       );
@@ -314,7 +307,8 @@ export class ConfigurationService {
         throw new NotFoundException(`Replica '${replicaId}' not found`);
       }
       this.validateVariables(variables, serviceName);
-      this.updateReplicaVariables(variables, replica);
+      replica.replicaVariables = variables;
+      this.serviceRepository.update(serviceName, service);
       // send updated configuration to sidecar
       this.eventService.publishConfiguration(serviceName, [replica]);
       return service;
@@ -322,27 +316,6 @@ export class ConfigurationService {
       this.logger.error(`{batchAddOrUpdateReplicaVariables} ${error.message}`)
       throw error;
     }
-  }
-
-  /**
-   * Updates the replica variables with the given configuration variables.
-   * If a variable with the same key already exists in the replica, it will be updated.
-   * Otherwise, the variable will be added to the replica.
-   * 
-   * @param variables - The configuration variables to update the replica with.
-   * @param replica - The service replica to update.
-   */
-  private updateReplicaVariables(variables: ConfigurationVariable[], replica: ServiceReplica) {
-    variables.forEach((variable) => {
-      const existingVarIndex = replica.replicaVariables.findIndex(
-        (existingVariable) => existingVariable.key === variable.key
-      );
-      if (existingVarIndex > -1) {
-        replica.replicaVariables[existingVarIndex] = variable;
-      } else {
-        replica.replicaVariables.push(variable);
-      }
-    });
   }
 
   /**
@@ -355,28 +328,39 @@ export class ConfigurationService {
     const { variableDefinitions } = this.findService(serviceName);
     variables.forEach(variable => {
       const definition = variableDefinitions.find(def => def.key === variable.key);
-      if (!definition) throw new Error(`Variable definition not found for ${variable.key}`);
+      if (!definition) {
+        throw new Error(`Variable definition not found for ${variable.key}`);
+      }
       const validate = this.ajv.compile(definition.type);
       const valid = validate(variable.value);
-      if (!valid) throw new BadRequestException(`[${variable.key}] Validation failed: ${validate.errors?.map(err => `${err.instancePath} ${err.message}`).join(', ')}`);
+      if (!valid) {
+        throw new BadRequestException(`[${variable.key}] Validation failed: ${validate.errors?.map(err => `${err.instancePath} ${err.message}`).join(', ')}`);
+      }
     });
   }
 
   /**
    * Deletes a service by name.
    * @param name - The name of the service to delete.
-   * @returns True if the service was successfully deleted, false otherwise.
+   * @returns True if the service was successfully deleted.
+   * @throws NotFoundException if the service is not found.
    */
   deleteService(name: string): boolean {
-    return this.serviceRepository.delete(name);
+    const deleted =  this.serviceRepository.delete(name);
+    if (!deleted) {
+      this.logger.error(`Failed to delete service ${name} as it does not exist`);
+      throw new NotFoundException(`Service '${name}' not found`);
+    }
+    return deleted;
   }
 
   /**
    * Deletes a replica by ID.
    * @param serviceName - The name of the service.
    * @param replicaId - The ID of the replica.
-   * @returns True if the replica was successfully deleted, false otherwise.
+   * @returns True if the replica was successfully deleted.
    * @throws NotFoundException if the service is not found.
+   * @throws NotFoundException if the replica is not found.
    */
   deleteReplica(serviceName: string, replicaId: string): boolean {
     const service = this.findService(serviceName);
@@ -387,6 +371,10 @@ export class ConfigurationService {
     service.replicas = service.replicas.filter(
       (replica) => replica.id !== replicaId,
     );
-    return service.replicas.length < initialLength;
+    if (service.replicas.length == initialLength) {
+      throw new NotFoundException(`Replica '${replicaId}' not found`);
+    }
+    this.serviceRepository.update(serviceName, service);
+    return true;
   }
 }
