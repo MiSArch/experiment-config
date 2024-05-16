@@ -8,7 +8,7 @@ import { VariableDefinitionsDto } from './dto/variable-definitions.dto';
  */
 @Injectable()
 export class ConnectorService {
-  private baseUrl:string = 'http://localhost:3500/v1.0/invoke';
+  private baseUrl: string = 'http://localhost:3500/v1.0/invoke';
   constructor(
     private readonly logger: Logger,
     private readonly httpService: HttpService,

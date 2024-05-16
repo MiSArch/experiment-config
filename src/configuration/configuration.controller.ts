@@ -1,6 +1,11 @@
 import { Body, Controller, Get, Param, Put } from '@nestjs/common';
 import { ConfigurationService } from './configuration.service';
-import { ConfigurationVariable, ConfigurationVariableDefinition, ServiceConfiguration, ServiceReplica } from './entities/service-configuration.entity';
+import {
+  ConfigurationVariable,
+  ConfigurationVariableDefinition,
+  ServiceConfiguration,
+  ServiceReplica,
+} from './entities/service-configuration.entity';
 import { UpdateVariableDto } from './dto/update-variable.dto';
 import { BatchUpdateVariableDto } from './dto/batch-update-variables.dto';
 
@@ -9,7 +14,6 @@ import { BatchUpdateVariableDto } from './dto/batch-update-variables.dto';
  */
 @Controller('configuration')
 export class ConfigurationController {
-
   /**
    * Creates an instance of the ConfigurationController class.
    * @param configurationService The configuration service.
@@ -21,7 +25,7 @@ export class ConfigurationController {
    * @returns All services configurations.
    */
   @Get()
-  getAllServices(): ServiceConfiguration[]  {
+  getAllServices(): ServiceConfiguration[] {
     return this.configurationService.findAllServices();
   }
 
@@ -41,7 +45,7 @@ export class ConfigurationController {
    */
   @Get(':service/defined-variables')
   getServiceDefinedVariables(
-    @Param('service') serviceName: string
+    @Param('service') serviceName: string,
   ): ConfigurationVariableDefinition[] {
     return this.configurationService.findService(serviceName)
       ?.variableDefinitions;
@@ -54,7 +58,7 @@ export class ConfigurationController {
    */
   @Get(':service/variables')
   getServiceVariables(
-    @Param('service') serviceName: string
+    @Param('service') serviceName: string,
   ): ConfigurationVariable[] {
     return this.configurationService.findService(serviceName)?.globalVariables;
   }
@@ -69,13 +73,12 @@ export class ConfigurationController {
     return this.configurationService.findService(serviceName)?.replicas;
   }
 
-
   /**
    * HTTP Endpoint to update the variables for a specific service.
    * @param serviceName - The name of the service.
    * @param batchUpdateDto - The DTO containing the variables to be updated.
    * @returns The updated service configuration.
-  */
+   */
   @Put(':service/variables')
   updateServiceVariables(
     @Param('service') serviceName: string,
@@ -87,13 +90,12 @@ export class ConfigurationController {
     );
   }
 
-
   /**
    * HTTP Endpoint to retrieve the value of a variable for a specific service.
    * @param serviceName - The name of the service.
    * @param variableKey - The key of the variable.
    * @returns The configuration variable.
-  */
+   */
   @Get(':service/variables/:variable')
   getServiceVariable(
     @Param('service') serviceName: string,
@@ -111,7 +113,7 @@ export class ConfigurationController {
    * @param variableKey - The key of the variable.
    * @param updateDto - The DTO containing the updated value.
    * @returns The updated service configuration.
-  */
+   */
   @Put(':service/variables/:variable')
   updateServiceVariable(
     @Param('service') serviceName: string,
@@ -133,7 +135,7 @@ export class ConfigurationController {
    * @param serviceName - The name of the service.
    * @param replicaId - The ID of the replica.
    * @returns All variables for the replica.
-  */
+   */
   @Get(':service/replicas/:replica/variables')
   getReplicaVariables(
     @Param('service') serviceName: string,
@@ -149,7 +151,7 @@ export class ConfigurationController {
    * @param replicaId - The ID of the replica.
    * @param batchUpdateDto - The DTO containing the variables to be updated.
    * @returns The updated replica configuration.
-  */
+   */
   @Put(':service/replicas/:replica/variables')
   updateReplicaVariables(
     @Param('service') serviceName: string,
@@ -169,7 +171,7 @@ export class ConfigurationController {
    * @param replicaId - The ID of the replica.
    * @param variableKey - The key of the variable.
    * @returns The configuration variable.
-  */
+   */
   @Get(':service/replicas/:replica/variables/:variable')
   getReplicaVariable(
     @Param('service') serviceName: string,
@@ -190,7 +192,7 @@ export class ConfigurationController {
    * @param variableKey - The key of the variable.
    * @param updateDto - The DTO containing the updated value.
    * @returns The updated replica configuration.
-  */
+   */
   @Put(':service/replicas/:replica/variables/:variable')
   updateReplicaVariable(
     @Param('service') serviceName: string,

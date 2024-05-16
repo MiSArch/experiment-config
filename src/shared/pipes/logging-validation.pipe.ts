@@ -13,7 +13,7 @@ import {
  */
 @Injectable()
 export class LoggingValidationPipe extends ValidationPipe {
-  constructor(options?) {
+  constructor(options?: any) {
     super(options);
   }
 

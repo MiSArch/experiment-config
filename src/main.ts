@@ -14,12 +14,6 @@ async function bootstrap() {
   app.useBodyParser('json', {
     type: ['application/json', 'application/cloudevents+json'],
   });
-  app.enableCors({
-    origin: ['http://localhost:4200'],
-    methods: 'GET,PUT',
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-  });
   await app.listen(8080);
 
   app.useLogger(logger);

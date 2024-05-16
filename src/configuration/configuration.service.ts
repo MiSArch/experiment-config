@@ -47,7 +47,10 @@ export class ConfigurationService {
    * @param replicaId - The ID of the replica.
    */
   heartbeat(serviceName: string, replicaId: string) {
-    if (!this.serviceRepository.exists(serviceName) && !this.mutex[serviceName]) {
+    if (
+      !this.serviceRepository.exists(serviceName) &&
+      !this.mutex[serviceName]
+    ) {
       return this.handleFirstHeartbeat(serviceName, replicaId);
     }
     const service = this.findService(serviceName);
@@ -72,7 +75,7 @@ export class ConfigurationService {
     try {
       return this.addService(serviceName, replicaId);
     } catch (error) {
-      this.logger.error(`{heartbeat} ${error.message}`)
+      this.logger.error(`{heartbeat} ${error.message}`);
       this.mutex[serviceName] = false;
       return;
     }
@@ -95,7 +98,9 @@ export class ConfigurationService {
       variableDefinitions: [],
     };
 
-    this.logger.log(`Adding service ${serviceName} with replica ${initialReplicaId}`);
+    this.logger.log(
+      `Adding service ${serviceName} with replica ${initialReplicaId}`,
+    );
     this.serviceRepository.create(service);
     return this.buildServiceConfiguration(service);
   }
@@ -280,7 +285,7 @@ export class ConfigurationService {
       this.eventService.publishConfiguration(serviceName, service.replicas);
       return service;
     } catch (error) {
-      this.logger.error(`{batchAddOrUpdateServiceVariables} ${error.message}`)
+      this.logger.error(`{batchAddOrUpdateServiceVariables} ${error.message}`);
       throw error;
     }
   }
@@ -313,7 +318,7 @@ export class ConfigurationService {
       this.eventService.publishConfiguration(serviceName, [replica]);
       return service;
     } catch (error) {
-      this.logger.error(`{batchAddOrUpdateReplicaVariables} ${error.message}`)
+      this.logger.error(`{batchAddOrUpdateReplicaVariables} ${error.message}`);
       throw error;
     }
   }
@@ -326,15 +331,19 @@ export class ConfigurationService {
    */
   validateVariables(variables: ConfigurationVariable[], serviceName: string) {
     const { variableDefinitions } = this.findService(serviceName);
-    variables.forEach(variable => {
-      const definition = variableDefinitions.find(def => def.key === variable.key);
+    variables.forEach((variable) => {
+      const definition = variableDefinitions.find(
+        (def) => def.key === variable.key,
+      );
       if (!definition) {
         throw new Error(`Variable definition not found for ${variable.key}`);
       }
       const validate = this.ajv.compile(definition.type);
       const valid = validate(variable.value);
       if (!valid) {
-        throw new BadRequestException(`[${variable.key}] Validation failed: ${validate.errors?.map(err => `${err.instancePath} ${err.message}`).join(', ')}`);
+        throw new BadRequestException(
+          `[${variable.key}] Validation failed: ${validate.errors?.map((err: any) => `${err.instancePath} ${err.message}`).join(', ')}`,
+        );
       }
     });
   }
@@ -346,7 +355,7 @@ export class ConfigurationService {
    * @throws NotFoundException if the service is not found.
    */
   deleteService(name: string): boolean {
-    const deleted =  this.serviceRepository.delete(name);
+    const deleted = this.serviceRepository.delete(name);
     if (!deleted) {
       this.logger.error(`Failed to delete service ${name} as it does not exist`);
       throw new NotFoundException(`Service '${name}' not found`);

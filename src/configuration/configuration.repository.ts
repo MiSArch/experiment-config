@@ -13,10 +13,14 @@ export class ServiceConfigurationRepository {
    * @throws Error if the service name already exists.
    * @returns The created service configuration.
    */
-  public create(serviceConfiguration: ServiceConfiguration): ServiceConfiguration {
+  public create(
+    serviceConfiguration: ServiceConfiguration,
+  ): ServiceConfiguration {
     const serviceName = serviceConfiguration.name;
     if (this.serviceConfigurations.has(serviceName)) {
-      throw new Error(`Service configuration with name "${serviceName}" already exists.`);
+      throw new Error(
+        `Service configuration with name "${serviceName}" already exists.`,
+      );
     }
     this.serviceConfigurations.set(serviceName, serviceConfiguration);
     return serviceConfiguration;
@@ -40,7 +44,9 @@ export class ServiceConfigurationRepository {
   public findByName(name: string): ServiceConfiguration {
     const service = this.serviceConfigurations.get(name);
     if (!service) {
-      throw new NotFoundException(`Service configuration with name "${name}" not found.`);
+      throw new NotFoundException(
+        `Service configuration with name "${name}" not found.`,
+      );
     }
     return service;
   }
@@ -60,11 +66,16 @@ export class ServiceConfigurationRepository {
    * @returns The updated service configuration
    * @throws NotFoundException if the service configuration with the provided name is not found.
    */
-  public update(name: string, update: Partial<ServiceConfiguration>): ServiceConfiguration {
+  public update(
+    name: string,
+    update: Partial<ServiceConfiguration>,
+  ): ServiceConfiguration {
     const serviceConfiguration = this.findByName(name);
     if (!serviceConfiguration) {
-      throw new NotFoundException(`Service configuration with name "${name}" not found.`);
-    };
+      throw new NotFoundException(
+        `Service configuration with name "${name}" not found.`,
+      );
+    }
     Object.assign(serviceConfiguration, update);
     this.serviceConfigurations.set(name, serviceConfiguration);
     return serviceConfiguration;

@@ -64,7 +64,7 @@ export class EventService {
             accumulator[currentConfiguration.key] = currentConfiguration.value;
             return accumulator;
           },
-          {},
+          {} as Record<string, any>,
         );
         return {
           replicaId: replica.id,
