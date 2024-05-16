@@ -157,11 +157,14 @@ export class ConfigurationService {
 
     // initialise replica with global variables
     const variables: ConfigurationVariable[] = service.globalVariables;
-    service.replicas.push({
+    const replica: ServiceReplica = {
       id: replicaId,
       replicaVariables: variables,
       lastSeen: new Date(),
-    });
+    };
+    service.replicas.push(replica);
+    // send updated configuration to sidecar
+    this.eventService.publishConfiguration(serviceName, [replica]);
     return service;
   }
 
