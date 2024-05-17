@@ -295,11 +295,7 @@ export class ConfigurationService {
     try {
       this.validateVariables(variables, serviceName);
       // update global variables
-      service.globalVariables = Object.assign(service.globalVariables, variables);
-      // update all replicas with new global variables
-      service.replicas.forEach((replica) => {
-        replica.replicaVariables = structuredClone(service.globalVariables);
-      });
+      this.updateServiceVariables(service, variables);
       this.serviceRepository.update(serviceName, service);
       // send updated configuration to sidecar
       this.eventService.publishConfiguration(serviceName, service.replicas);
@@ -308,6 +304,29 @@ export class ConfigurationService {
       this.logger.error(`{batchAddOrUpdateServiceVariables} ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Finds and updates multiple global configuration variables.
+   * @param service - The service configuration.
+   * @param variables - The updated variables.
+   */
+  updateServiceVariables(
+    service: ServiceConfiguration,
+    variables: ConfigurationVariable[],
+  ) {
+    service.globalVariables.forEach((variable) => {
+      const updated = variables.find(
+        (updatedVariable) => updatedVariable.key === variable.key,
+      );
+      if (updated) {
+        variable.value = updated.value;
+      }
+    });
+    // update all replicas with new global variables
+    service.replicas.forEach((replica) => {
+      replica.replicaVariables = structuredClone(service.globalVariables);
+    });
   }
 
   /**
@@ -332,7 +351,7 @@ export class ConfigurationService {
         throw new NotFoundException(`Replica '${replicaId}' not found`);
       }
       this.validateVariables(variables, serviceName);
-      replica.replicaVariables = Object.assign(replica.replicaVariables, variables);
+      this.updateReplicaVariables(replica.replicaVariables, variables);
       this.serviceRepository.update(serviceName, service);
       // send updated configuration to sidecar
       this.eventService.publishConfiguration(serviceName, [replica]);
@@ -341,6 +360,25 @@ export class ConfigurationService {
       this.logger.error(`{batchAddOrUpdateReplicaVariables} ${error.message}`);
       throw error;
     }
+  }
+
+  /**
+   * Finds and updates multiple replica configuration variables.
+   * @param replicaVariables - The replica variables to update.
+   * @param variables - The updated variables.
+   */
+  updateReplicaVariables(
+    replicaVariables: ConfigurationVariable[],
+    variables: ConfigurationVariable[],
+  ) {
+    replicaVariables.forEach((variable) => {
+      const updated = variables.find(
+        (updatedVariable) => updatedVariable.key === variable.key,
+      );
+      if (updated) {
+        variable.value = updated.value;
+      }
+    });
   }
 
   /**
