@@ -43,14 +43,15 @@ export class ConfigurationService {
   /**
    * Updates the heartbeat of a service replica.
    * If the service or replica does not exist, it adds a new service with the given name and replica ID.
+   * If the service is currently being added, the heartbeat is ignored.
    * @param serviceName - The name of the service.
    * @param replicaId - The ID of the replica.
    */
   heartbeat(serviceName: string, replicaId: string) {
-    if (
-      !this.serviceRepository.exists(serviceName) &&
-      !this.mutex[serviceName]
-    ) {
+    if (this.mutex[serviceName]) {
+      return;
+    }
+    if (!this.serviceRepository.exists(serviceName)) {
       return this.handleFirstHeartbeat(serviceName, replicaId);
     }
     const service = this.findService(serviceName);
