@@ -14,7 +14,7 @@ import {
 } from './entities/service-configuration.entity';
 import { ConnectorService } from './connector.service';
 import { EventService } from 'src/event/events.service';
-import Ajv from 'ajv';
+import Ajv, { JSONSchemaType } from 'ajv';
 import { VariableDefinitionsDto } from './dto/variable-definitions.dto';
 import { AxiosResponse } from 'axios';
 
@@ -87,22 +87,25 @@ export class ConfigurationService {
    * @param initialReplicaId - The ID of the initial replica.
    * @returns The created service configuration.
    */
-  async addService(
-    serviceName: string,
-    initialReplicaId: string,
-  ): Promise<ServiceConfiguration> {
-    const service: ServiceConfiguration = {
-      name: serviceName,
-      replicas: [{ id: initialReplicaId, replicaVariables: [] }],
-      globalVariables: [],
-      variableDefinitions: [],
-    };
-
+  async addService(serviceName: string, initialReplicaId: string) {
     this.logger.log(
       `Adding service ${serviceName} with replica ${initialReplicaId}`,
     );
-    this.serviceRepository.create(service);
-    return this.buildServiceConfiguration(service);
+    try {
+      const { data }: AxiosResponse<VariableDefinitionsDto> =
+        await this.connectorService.getConfigFromSidecar(serviceName);
+      const { configuration } = data;
+      this.logger.log(
+        `Received variable definitions for service ${serviceName}: ${JSON.stringify(data)}`,
+      );
+      this.buildServiceConfiguration(
+        serviceName,
+        initialReplicaId,
+        configuration,
+      );
+    } catch (error) {
+      this.logger.error(`{addService} ${error.message}`);
+    }
   }
 
   /**
@@ -111,15 +114,25 @@ export class ConfigurationService {
    * @param service - The service configuration.
    * @returns The updated service configuration.
    */
-  async buildServiceConfiguration(service: ServiceConfiguration): Promise<ServiceConfiguration> {
-    const serviceName = service.name;
-    // request variable definitions from sidecar
-    const { data }: AxiosResponse<VariableDefinitionsDto> =
-      await this.connectorService.getConfigFromSidecar(serviceName);
-    this.logger.log(`Received variable definitions for service ${serviceName}: ${JSON.stringify(data)}`);
-
+  async buildServiceConfiguration(
+    serviceName: string,
+    replicaId: string,
+    configuration: Record<
+      string,
+      {
+        type: JSONSchemaType<any>;
+        defaultValue: any;
+      }
+    >,
+  ): Promise<ServiceConfiguration> {
+    const service: ServiceConfiguration = {
+      name: serviceName,
+      replicas: [{ id: replicaId, replicaVariables: [] }],
+      globalVariables: [],
+      variableDefinitions: [],
+    };
     // iterate over variable definitions and initialise variables and definitions
-    Object.entries(data.configuration).forEach(([key, value]) => {
+    Object.entries(configuration).forEach(([key, value]) => {
       service.globalVariables.push({
         key: key,
         value: value.defaultValue,
@@ -136,7 +149,7 @@ export class ConfigurationService {
       });
     });
 
-    this.serviceRepository.update(serviceName, service);
+    this.serviceRepository.create(service);
     this.mutex[serviceName] = false;
     return service;
   }
@@ -273,7 +286,9 @@ export class ConfigurationService {
   ): ServiceConfiguration {
     const service = this.findService(serviceName);
     if (!service) {
-      this.logger.error(`{batchAddOrUpdateServiceVariables} Service ${serviceName} not found`)
+      this.logger.error(
+        `{batchAddOrUpdateServiceVariables} Service ${serviceName} not found`,
+      );
       throw new NotFoundException(`Service '${serviceName}' not found`);
     }
     try {
@@ -360,7 +375,9 @@ export class ConfigurationService {
   deleteService(name: string): boolean {
     const deleted = this.serviceRepository.delete(name);
     if (!deleted) {
-      this.logger.error(`Failed to delete service ${name} as it does not exist`);
+      this.logger.error(
+        `Failed to delete service ${name} as it does not exist`,
+      );
       throw new NotFoundException(`Service '${name}' not found`);
     }
     return deleted;
