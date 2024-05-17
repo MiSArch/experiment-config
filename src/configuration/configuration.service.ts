@@ -294,7 +294,8 @@ export class ConfigurationService {
     }
     try {
       this.validateVariables(variables, serviceName);
-      service.globalVariables = variables;
+      // update global variables
+      service.globalVariables = Object.assign(service.globalVariables, variables);
       // update all replicas with new global variables
       service.replicas.forEach((replica) => {
         replica.replicaVariables = structuredClone(service.globalVariables);
@@ -331,7 +332,7 @@ export class ConfigurationService {
         throw new NotFoundException(`Replica '${replicaId}' not found`);
       }
       this.validateVariables(variables, serviceName);
-      replica.replicaVariables = variables;
+      replica.replicaVariables = Object.assign(replica.replicaVariables, variables);
       this.serviceRepository.update(serviceName, service);
       // send updated configuration to sidecar
       this.eventService.publishConfiguration(serviceName, [replica]);
